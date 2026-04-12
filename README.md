@@ -5,7 +5,7 @@
 
 Integrantes:
 
-- {Apellido, Nombre} | [@username](https://github.com/username)
+- {Batista, Dante} | [@dantebatista52](https://github.com/dantebatista52)
 - {Apellido, Nombre} | [@username](https://github.com/username)
 - {Apellido, Nombre} | [@username](https://github.com/username)
 - {Apellido, Nombre} | [@username](https://github.com/username)
