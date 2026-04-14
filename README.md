@@ -7,7 +7,7 @@ Integrantes:
 
 - {Batista, Dante} | [@dantebatista52](https://github.com/dantebatista52)
 - {Batista, Ignacio} | [@ignaciobatista207](https://github.com/ignaciobatista207)
-- {Apellido, Nombre} | [@username](https://github.com/username)
+- {Benitez, Mateo} | [@Mateo-Benitez](https://github.com/Mateo-Benitez)
 - {Apellido, Nombre} | [@username](https://github.com/username)
 
 Proyecto institucional **E.E.S.T Nº4 de Berazategui**.
