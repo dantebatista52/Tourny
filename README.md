@@ -16,7 +16,7 @@ Proyecto institucional **E.E.S.T Nº4 de Berazategui**.
 
 - Para la comunidad futbolera/deportista
 - Quienes necesitan organizar torneos de manera rápida, clara y confiable, sin complicaciones administrativas ni errores en la gestión
-- El {nombre del proyecto} es una aplicación web de gestión de torneos deportivos
+- Tourny es una aplicación web de gestión de torneos deportivos
 - Que te dará el poder de organizar tus torneos de forma segura y eficaz
 - Diferente a Copa Facil, Leverize, Competize, etc.
 - Nuestro proyecto ofrece una experiencia más simple, intuitiva y personalizable, enfocada en usuarios comunes y no solo en organizadores profesionales, permitiendo crear, gestionar y compartir torneos de forma accesible desde cualquier dispositivo.
