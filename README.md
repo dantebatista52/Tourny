@@ -1,7 +1,7 @@
-# {nombre del proyecto}
+# Tourny
 
 **Descripción:**
-{nombre del proyecto} es una aplicacion web que busca otorgarle al futbolista amateur las herramientas necesarias para organizar torneos personalizados de futbol o el deporte de su preferencia. Podrá llevar registro de los equipos y jugadores anotados, tabla de posiciones, goleadores/anotadores y mucho más.
+Tourny es una aplicacion web que busca otorgarle al futbolista amateur las herramientas necesarias para organizar torneos personalizados de futbol o el deporte de su preferencia. Podrá llevar registro de los equipos y jugadores anotados, tabla de posiciones, goleadores/anotadores y mucho más.
 
 Integrantes:
 
