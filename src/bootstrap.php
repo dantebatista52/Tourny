@@ -24,13 +24,31 @@ $app = AppFactory::create();
 // Crear el motor de plantillas
 $renderer = new PhpRenderer(
   templatePath: __DIR__ . "/views",
-  attributes: ["title" => "PDI | Slim Template 2026"],
+  attributes: ["title" => "Tourny - Gestor de torneos personalizados"],
 );
 
 // Ruta/Vista principal
 $app->get("/", function ($request, $response) use ($renderer) {
   return view($renderer, $response, "index.php");
 });
+
+// auth
+
+$app->get("/login", function ($request, $response) use ($renderer) {
+return view($renderer, $response, "/auth/login.php");
+});
+
+$app->get("/registro", function ($request, $response) use ($renderer) {
+return view($renderer, $response, "/auth/registro.php");
+});
+
+// dashboard
+
+$app->get("/dashboard", function ($request, $response) use ($renderer) {
+return view($renderer, $response, "/dashboard/index.php");
+});
+
+// 
 
 $app->addErrorMiddleware($debug, true, true);
 
