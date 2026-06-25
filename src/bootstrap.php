@@ -27,27 +27,73 @@ $renderer = new PhpRenderer(
   attributes: ["title" => "Tourny - Gestor de torneos personalizados"],
 );
 
-// Ruta/Vista principal
+// ==========================================
+// 1. RUTA PÚBLICA / LANDING
+// ==========================================
 $app->get("/", function ($request, $response) use ($renderer) {
-  return view($renderer, $response, "index.php");
+    return view($renderer, $response, "public/landing.php"); // Cambiado a public/landing según tu flujo
 });
 
-// auth
+// Vista pública compartida para los jugadores (Solo lectura)
+$app->get("/torneo/{slug}", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "public/torneo_slug.php");
+});
 
+// ==========================================
+// 2. AUTENTICACIÓN (AUTH)
+// ==========================================
 $app->get("/login", function ($request, $response) use ($renderer) {
-return view($renderer, $response, "/auth/login.php");
+    return view($renderer, $response, "auth/login.php");
 });
 
 $app->get("/registro", function ($request, $response) use ($renderer) {
-return view($renderer, $response, "/auth/registro.php");
+    return view($renderer, $response, "auth/registro.php");
 });
 
-// dashboard
-
+// ==========================================
+// 3. DASHBOARD PRINCIPAL
+// ==========================================
 $app->get("/dashboard", function ($request, $response) use ($renderer) {
-return view($renderer, $response, "/dashboard/index.php");
+    return view($renderer, $response, "dashboard/index.php");
 });
 
+// ==========================================
+// 4. TORNEOS (ZONA PRIVADA)
+// ==========================================
+
+// Formulario para crear un torneo
+$app->get("/torneos/create", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "torneos/create.php");
+});
+
+// Detalle general de un torneo específico
+$app->get("/torneos/{id}", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "torneos/detail.php");
+});
+
+// Gestión de equipos inscritos en el torneo
+$app->get("/torneos/{id}/equipos", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "torneos/equipos.php");
+});
+
+// Tabla de posiciones o Brackets del torneo
+$app->get("/torneos/{id}/tabla", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "torneos/tabla.php");
+});
+
+// ==========================================
+// 5. PARTIDOS / FIXTURE (ZONA PRIVADA)
+// ==========================================
+
+// Calendario/Fixture de un torneo
+$app->get("/torneos/{id}/fixture", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "partidos/fixture.php");
+});
+
+// Cargar/Editar resultado de un partido específico
+$app->get("/partidos/{id}/resultado", function ($request, $response) use ($renderer) {
+    return view($renderer, $response, "partidos/resultado.php");
+});
 // 
 
 $app->addErrorMiddleware($debug, true, true);
