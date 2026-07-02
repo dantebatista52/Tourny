@@ -258,7 +258,7 @@
         Organizá torneos personalizados con fixture automático, tabla de posiciones en tiempo real y todo lo que tu competencia necesita.
       </p>
 
-      <a href="" class="btn-main">
+      <a href="/torneos/create" class="btn-main">
         <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>

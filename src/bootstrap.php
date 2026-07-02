@@ -61,9 +61,27 @@ $app->get("/dashboard", function ($request, $response) use ($renderer) {
 // 4. TORNEOS (ZONA PRIVADA)
 // ==========================================
 
-// Formulario para crear un torneo
+// Acceder formulario para crear un torneo
 $app->get("/torneos/create", function ($request, $response) use ($renderer) {
     return view($renderer, $response, "torneos/create.php");
+});
+
+// Crear torneo con metodo post
+
+$app->post("/torneos/create", function ($request, $response) use ($renderer) {
+    // Captura los datos enviados por el formulario POST
+    $parsedBody = $request->getParsedBody();
+    
+    // Obtenemos lo que el usuario ingresó (con valores por defecto por si vienen vacíos)
+    $nombreTorneo = $parsedBody['nombre'] ?? 'Torneo de Prueba';
+    $tipoTorneo = $parsedBody['tipo'] ?? 'liga';
+
+    // Para la prueba, enviamos estos datos directamente a la vista 'detail.php'
+    return view($renderer, $response, "torneos/detail.php", [
+        "nombre" => $nombreTorneo,
+        "tipo" => $tipoTorneo,
+        "id" => 1 // ID simulado
+    ]);
 });
 
 // Detalle general de un torneo específico
@@ -94,7 +112,7 @@ $app->get("/torneos/{id}/fixture", function ($request, $response) use ($renderer
 $app->get("/partidos/{id}/resultado", function ($request, $response) use ($renderer) {
     return view($renderer, $response, "partidos/resultado.php");
 });
-// 
+
 
 $app->addErrorMiddleware($debug, true, true);
 

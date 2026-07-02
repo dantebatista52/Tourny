@@ -1,23 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tourny - Crear torneo</title>
+    <title>Crear Torneo</title>
 </head>
 <body>
-    <h1>Crear torneo</h1>
 
-    Nombre del torneo <input type="text" name="nom_torneo"><br>
-    <br>
-    Formato de torneo: 
-    <select name="formato_torneo">
-        <option value="1">Liga</option>
-        <option value="2">Eliminación directa</option>
-        <option value="3">Fase de grupos</option>
-    </select><br>
-    <br>
-    Cantidad de equipos: <input type="number" name="cant_equipos">
+    <h1>Crear Nuevo Torneo</h1>
+    
+    <form action="/torneos/create" method="POST">
+        
+        <div>
+            <label for="nombre">Nombre del Torneo:</label>
+            <input type="text" id="nombre" name="nombre" required>
+        </div>
+
+        <div>
+            <label for="tipo">Formato de Competición:</label>
+            <select id="tipo" name="tipo">
+                <option value="liga">Liga</option>
+                <option value="eliminatoria">Eliminatoria directa</option>
+            </select>
+        </div>
+
+        <div>
+            <button type="submit">Crear Torneo</button>
+        </div>
+
+    </form>
 
 </body>
 </html>
