@@ -24,9 +24,9 @@ class Database
     }
 
     $this->host = $_ENV["DB_HOST"] ?? "localhost";
-    $this->dbName = $_ENV["DB_NAME"] ?? "slim_php";
+    $this->dbName = $_ENV["DB_NAME"] ?? "tourny";
     $this->username = $_ENV["DB_USER"] ?? "root";
-    $this->password = $_ENV["DB_PASS"] ?? "root";
+    $this->password = $_ENV["DB_PASS"] ?? "";
   }
 
   public function getConnection(): PDO
