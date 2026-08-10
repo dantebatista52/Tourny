@@ -10,14 +10,38 @@
             <p class="text-brand-emerald font-semibold text-sm">Formato: <?= ucfirst(htmlspecialchars($torneo['formato'] ?? '')) ?></p>
         </div>
         
-        <div class="flex flex-wrap gap-3">
-            <!-- Botones de navegación con estilos claramente diferenciados -->
-            <a href="/torneos/<?= $torneo['id'] ?>/tabla" class="bg-brand-deep hover:bg-brand-emerald text-brand-mint font-bold px-4 py-2 rounded-lg text-sm transition shadow-sm">
-                📊 Ver Tabla
-            </a>
-            <a href="/dashboard" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm transition">
-                ← Dashboard
-            </a>
+        <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+            <!-- Sección del Enlace Público del Slug -->
+            <?php if (!empty($torneo['slug'])): ?>
+                <?php 
+                    $protocolo = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+                    $host = $_SERVER['HTTP_HOST'];
+                    $urlPublica = "{$protocolo}://{$host}/torneo/" . $torneo['slug'];
+                ?>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center gap-2 max-w-full">
+                    <span class="text-xs font-mono font-semibold text-brand-dark truncate max-w-[180px] sm:max-w-[240px]">
+                        🔗 <?= htmlspecialchars($urlPublica) ?>
+                    </span>
+                    <button type="button" 
+                            onclick="copiarEnlacePublico('<?= htmlspecialchars($urlPublica) ?>')" 
+                            id="btn-copy-link"
+                            class="bg-brand-deep hover:bg-brand-emerald text-white text-xs font-bold py-1.5 px-3 rounded-md transition shadow flex items-center gap-1 whitespace-nowrap">
+                        📋 <span>Copiar Enlace</span>
+                    </button>
+                </div>
+            <?php endif; ?>
+
+            <!-- Botones de navegación -->
+            <div class="flex gap-2">
+                <?php if (($torneo['formato'] ?? '') === 'liga'): ?>
+                    <a href="/torneos/<?= $torneo['id'] ?>/tabla" class="bg-brand-deep hover:bg-brand-emerald text-brand-mint font-bold px-4 py-2 rounded-lg text-sm transition shadow-sm">
+                        📊 Ver Tabla
+                    </a>
+                <?php endif; ?>
+                <a href="/dashboard" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm transition">
+                    ← Dashboard
+                </a>
+            </div>
         </div>
     </div>
 
@@ -87,3 +111,25 @@
         </div>
     <?php endif; ?>
 </div>
+
+<!-- Script nativo para copiar la URL -->
+<script>
+function copiarEnlacePublico(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById('btn-copy-link');
+        const originalHtml = btn.innerHTML;
+        
+        btn.innerHTML = '✅ <span>¡Copiado!</span>';
+        btn.classList.remove('bg-brand-deep', 'hover:bg-brand-emerald');
+        btn.classList.add('bg-emerald-600');
+
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.classList.remove('bg-emerald-600');
+            btn.classList.add('bg-brand-deep', 'hover:bg-brand-emerald');
+        }, 2000);
+    }).catch(err => {
+        console.error('Error al copiar el enlace: ', err);
+    });
+}
+</script>
