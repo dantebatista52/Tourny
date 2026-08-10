@@ -35,25 +35,117 @@ $renderer = new PhpRenderer(
 // ==========================================
 
 // Ruta de la Landing Page (GET /)
+
+// ==========================================
+// 1. RUTA PÚBLICA / LANDING
+// ==========================================
+
+// Ruta de la Landing Page (GET /)
 $app->get("/", function ($request, $response) use ($renderer) {
-    // Iniciamos sesión para poder leer las variables
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
 
-    // Verificamos si el usuario ya está logueado
+    // 1. Verificamos si el usuario ya está logueado dentro de la función
     $isLoggedIn = isset($_SESSION['usuario_id']);
 
-    // Le pasamos esa información a la vista landing.php
-    return view($renderer, $response, "landing.php", [
+    // 2. Retornamos la vista independiente pasando todas las variables necesarias
+    return viewStandalone($renderer, $response, "landing.php", [
+        "titulo" => "Bienvenido a Tourny",
         "isLoggedIn" => $isLoggedIn
     ]);
 });
 
 // Vista pública compartida para los jugadores (Solo lectura)
-$app->get("/torneo/{slug}", function ($request, $response) use ($renderer) {
-    return view($renderer, $response, "public/torneo_slug.php");
+$app->get("/torneo/{slug}", function ($request, $response, $args) use ($renderer) {
+    $slug = $args['slug'];
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // 1. Obtener el torneo por el slug
+    $stmtTorneo = $db->prepare("SELECT * FROM torneos WHERE slug = ?");
+    $stmtTorneo->execute([$slug]);
+    $torneo = $stmtTorneo->fetch();
+
+    if (!$torneo) {
+        $response->getBody()->write("Torneo no encontrado.");
+        return $response->withStatus(404);
+    }
+
+    $idTorneo = $torneo['id'];
+
+    // 2. Obtener partidos
+    $sqlPartidos = "SELECT p.*, 
+                           el.nombre AS local_nombre, 
+                           ev.nombre AS visitante_nombre 
+                    FROM partidos p
+                    LEFT JOIN equipos el ON p.id_equipo_local = el.id
+                    LEFT JOIN equipos ev ON p.id_equipo_visitante = ev.id
+                    WHERE p.id_torneo = ?
+                    ORDER BY p.fecha_numero ASC, p.id ASC";
+    $stmtPartidos = $db->prepare($sqlPartidos);
+    $stmtPartidos->execute([$idTorneo]);
+    $partidos = $stmtPartidos->fetchAll();
+
+    // 3. Obtener equipos y calcular la tabla de posiciones
+    $stmtEquipos = $db->prepare("SELECT id, nombre FROM equipos WHERE id_torneo = ?");
+    $stmtEquipos->execute([$idTorneo]);
+    $equipos = $stmtEquipos->fetchAll();
+
+    $tabla = [];
+    foreach ($equipos as $eq) {
+        $tabla[$eq['id']] = [
+            'nombre' => $eq['nombre'],
+            'pj' => 0, 'pg' => 0, 'pe' => 0, 'pp' => 0,
+            'gf' => 0, 'gc' => 0, 'dg' => 0, 'pts' => 0
+        ];
+    }
+
+    foreach ($partidos as $p) {
+        if ($p['goles_local'] !== null && $p['goles_visitante'] !== null) {
+            $idLocal = $p['id_equipo_local'];
+            $idVisitante = $p['id_equipo_visitante'];
+            
+            if (isset($tabla[$idLocal]) && isset($tabla[$idVisitante])) {
+                $golesL = (int)$p['goles_local'];
+                $golesV = (int)$p['goles_visitante'];
+
+                $tabla[$idLocal]['pj']++;
+                $tabla[$idVisitante]['pj']++;
+                $tabla[$idLocal]['gf'] += $golesL;
+                $tabla[$idLocal]['gc'] += $golesV;
+                $tabla[$idVisitante]['gf'] += $golesV;
+                $tabla[$idVisitante]['gc'] += $golesL;
+
+                if ($golesL > $golesV) {
+                    $tabla[$idLocal]['pg']++; $tabla[$idLocal]['pts'] += 3; $tabla[$idVisitante]['pp']++;
+                } elseif ($golesV > $golesL) {
+                    $tabla[$idVisitante]['pg']++; $tabla[$idVisitante]['pts'] += 3; $tabla[$idLocal]['pp']++;
+                } else {
+                    $tabla[$idLocal]['pe']++; $tabla[$idLocal]['pts'] += 1;
+                    $tabla[$idVisitante]['pe']++; $tabla[$idVisitante]['pts'] += 1;
+                }
+            }
+        }
+    }
+
+    foreach ($tabla as &$e) { $e['dg'] = $e['gf'] - $e['gc']; }
+    unset($e);
+
+    usort($tabla, function ($a, $b) {
+        if ($b['pts'] !== $a['pts']) return $b['pts'] <=> $a['pts'];
+        if ($b['dg'] !== $a['dg']) return $b['dg'] <=> $a['dg'];
+        return $b['gf'] <=> $a['gf'];
+    });
+
+    return view($renderer, $response, "public/torneo_slug.php", [
+        "torneo" => $torneo,
+        "partidos" => $partidos,
+        "tabla" => $tabla
+    ]);
 });
+
+
 
 // ==========================================
 // 2. AUTENTICACIÓN (AUTH)
@@ -136,7 +228,7 @@ $app->post("/login", function ($request, $response) use ($renderer) {
 
     // Verificar si existe y si la contraseña coincide con el hash guardado
     if (!$usuario || !password_verify($password, $usuario['password_hash'])) {
-        $response->getBody()->write("Credenciales incorrectas.");
+        $response->getBody()->write("Credenciales incorrectas. No se encuentran los datos ingresados. Asegurate de haberte registrado y de ingresar el email y contraseña correctos.");
         return $response->withStatus(401);
     }
 
@@ -153,45 +245,100 @@ $app->post("/login", function ($request, $response) use ($renderer) {
     return $response->withHeader('Location', '/dashboard')->withStatus(302);
 });
 
-// ==========================================
-// 3. DASHBOARD PRINCIPAL
-// ==========================================
-
-// Muestra el Panel de Control (GET)
-$app->get("/dashboard", function ($request, $response) use ($renderer) {
-    // Si no tiene la sesión iniciada, forzamos el inicio
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-
-    // PROTECCIÓN: Si no hay un usuario logueado, lo mandamos de patitas al login
-    if (!isset($_SESSION['usuario_id'])) {
-        return $response->withHeader('Location', '/login')->withStatus(302);
-    }
-
-    // Si está logueado, le pasamos su nombre a la vista del dashboard
-    return view($renderer, $response, "dashboard/dashboard.php", [
-        "nombre" => $_SESSION['usuario_nombre']
-    ]);
-});
-
-// Ruta para Cerrar Sesión (GET o POST, lo hacemos GET para probar fácil con un enlace)
-$app->get("/logout", function ($request, $response) {
+// Ruta para Cerrar Sesión (Soporta GET y POST)
+$app->map(['GET', 'POST'], '/logout', function ($request, $response) {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
     
-    // Destruimos todas las variables de la sesión
+    // Destruimos todas las variables y la sesión global
     $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(), 
+            '', 
+            time() - 42000,
+            $params["path"], 
+            $params["domain"],
+            $params["secure"], 
+            $params["httponly"]
+        );
+    }
     session_destroy();
 
-    // Lo mandamos al login de vuelta
-    return $response->withHeader('Location', '/login')->withStatus(302);
+    // Redireccionamos al login
+    return $response->withHeader('Location', '/')->withStatus(302);
+});
+
+// ==========================================
+// 3. DASHBOARD PRINCIPAL
+// ==========================================
+
+// Muestra el Panel de Control con la lista de torneos (GET)
+$app->get("/dashboard", function ($request, $response) use ($renderer) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // CONTROL DE ACCESO
+    if (!isset($_SESSION['usuario_id'])) {
+        return $response->withHeader('Location', '/login')->withStatus(302);
+    }
+
+    $idOrganizador = $_SESSION['usuario_id'];
+
+    // Obtenemos la conexión e instanciamos la consulta
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // Buscamos todos los torneos que le pertenecen a este organizador
+    $stmt = $db->prepare("SELECT * FROM torneos WHERE id_organizador = ? ORDER BY created_at DESC");
+    $stmt->execute([$idOrganizador]);
+    $torneos = $stmt->fetchAll();
+
+    // Renderizamos la vista pasándole el nombre del usuario Y la lista de torneos
+    return view($renderer, $response, "dashboard/dashboard.php", [
+        "nombre" => $_SESSION['usuario_nombre'],
+        "torneos" => $torneos
+    ]);
 });
 
 // ==========================================
 // 4. TORNEOS (ZONA PRIVADA)
 // ==========================================
+
+// ==========================================
+// LISTADO DE TORNEOS DE UN USUARIO
+// ==========================================
+
+// Ruta GET /torneos (Lista todos los torneos del organizador logueado)
+$app->get("/torneos", function ($request, $response) use ($renderer) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Control de acceso: Si no hay usuario logueado, redirigir al login
+    if (!isset($_SESSION['usuario_id'])) {
+        return $response->withHeader('Location', '/login')->withStatus(302);
+    }
+
+    $idOrganizador = $_SESSION['usuario_id'];
+
+    // Conexión a la base de datos
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // Consultar todos los torneos que pertenecen a este usuario
+    $stmt = $db->prepare("SELECT * FROM torneos WHERE id_organizador = ? ORDER BY created_at DESC");
+    $stmt->execute([$idOrganizador]);
+    $torneos = $stmt->fetchAll();
+
+    // Renderizar la vista pasando el listado de torneos
+    return view($renderer, $response, "torneos/index.php", [
+        "torneos" => $torneos
+    ]);
+});
 
 // Formulario para crear un torneo (GET)
 $app->get("/torneos/create", function ($request, $response) use ($renderer) {
@@ -219,13 +366,16 @@ $app->post("/torneos/create", function ($request, $response) use ($renderer) {
     }
 
     $parsedBody = $request->getParsedBody();
-    $nombreTorneo = $parsedBody['nombre'] ?? '';
-    $formato = $parsedBody['formato'] ?? ''; // Ej: "liga", "eliminatoria"
+    $nombreTorneo = trim($parsedBody['nombre'] ?? '');
+    $formato = $parsedBody['formato'] ?? 'liga';
     $idOrganizador = $_SESSION['usuario_id'];
 
+    // 1. Generar el SLUG automáticamente limpiando el nombre
+    $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $nombreTorneo), '-'));
+
     // Validación básica
-    if (empty($nombreTorneo) || empty($formato)) {
-        $response->getBody()->write("Todos los campos son obligatorios.");
+    if (empty($nombreTorneo) || empty($formato) || empty($slug)) {
+        $response->getBody()->write("Todos los campos son obligatorios y el nombre debe ser válido.");
         return $response->withStatus(400);
     }
 
@@ -233,15 +383,50 @@ $app->post("/torneos/create", function ($request, $response) use ($renderer) {
     $databaseInstancia = new Database();
     $db = $databaseInstancia->getConnection();
 
-    // Insertar el nuevo torneo
-    $stmt = $db->prepare("INSERT INTO torneos (nombre, id_organizador, formato) VALUES (?, ?, ?)");
-    $stmt->execute([$nombreTorneo, $idOrganizador, $formato]);
+    // 2. Insertar el torneo incluyendo el SLUG generado y el ID del organizador
+    $stmt = $db->prepare("INSERT INTO torneos (nombre, slug, formato, id_organizador) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$nombreTorneo, $slug, $formato, $idOrganizador]);
 
-    // Obtenemos el ID del torneo que se acaba de crear para saber a dónde redirigir
+    // Obtenemos el ID del torneo creado
     $idTorneo = $db->lastInsertId();
 
-    // Redireccionamos directo a la gestión de equipos de ESTE torneo específico
+    // Redireccionamos a la gestión de equipos
     return $response->withHeader('Location', "/torneos/{$idTorneo}/equipos")->withStatus(302);
+});
+
+// Eliminar un torneo (POST)
+
+$app->post("/torneos/{id}/delete", function ($request, $response, $args) use ($renderer) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // CONTROL DE ACCESO: Verificar si el usuario está logueado
+    if (!isset($_SESSION['usuario_id'])) {
+        return $response->withHeader('Location', '/login')->withStatus(302);
+    }
+
+    $idTorneo = $args['id'];
+    $idOrganizador = $_SESSION['usuario_id'];
+
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // VALIDACIÓN DE PROPIEDAD: Asegurar que el torneo pertenezca al usuario logueado
+    $stmt = $db->prepare("SELECT id FROM torneos WHERE id = ? AND id_organizador = ?");
+    $stmt->execute([$idTorneo, $idOrganizador]);
+    
+    if (!$stmt->fetch()) {
+        $response->getBody()->write("No tienes permisos para eliminar este torneo o no existe.");
+        return $response->withStatus(403);
+    }
+
+    // Proceder a eliminar el torneo
+    $stmtDelete = $db->prepare("DELETE FROM torneos WHERE id = ?");
+    $stmtDelete->execute([$idTorneo]);
+
+    // Redireccionar al Dashboard tras la eliminación
+    return $response->withHeader('Location', '/dashboard')->withStatus(302);
 });
 
 // ==========================================
@@ -298,7 +483,7 @@ $app->post("/torneos/{id}/equipos", function ($request, $response, $args) use ($
 
     $idTorneo = $args['id'];
     $parsedBody = $request->getParsedBody();
-    $nombreEquipo = $parsedBody['nombre_equipo'] ?? '';
+    $nombreEquipo = trim($parsedBody['nombre_equipo'] ?? '');
 
     if (empty($nombreEquipo)) {
         $response->getBody()->write("El nombre del equipo no puede estar vacío.");
@@ -308,11 +493,55 @@ $app->post("/torneos/{id}/equipos", function ($request, $response, $args) use ($
     $databaseInstancia = new Database();
     $db = $databaseInstancia->getConnection();
 
-    // Insertamos el equipo asociándolo al ID del torneo actual
+    // 1. VALIDACIÓN: Verificar si ya existe un equipo con ese nombre en este torneo
+    $stmtCheck = $db->prepare("SELECT id FROM equipos WHERE id_torneo = ? AND LOWER(nombre) = LOWER(?)");
+    $stmtCheck->execute([$idTorneo, $nombreEquipo]);
+
+    if ($stmtCheck->fetch()) {
+        // Detener la ejecución si el nombre ya está registrado
+        $response->getBody()->write("Ya existe un equipo con el nombre '{$nombreEquipo}' en este torneo.");
+        return $response->withStatus(400);
+    }
+
+    // 2. Si no existe, procedemos a insertar el nuevo equipo
     $stmt = $db->prepare("INSERT INTO equipos (id_torneo, nombre) VALUES (?, ?)");
     $stmt->execute([$idTorneo, $nombreEquipo]);
 
-    // Recargamos la misma página por GET para ver el equipo reflejado en la lista
+    return $response->withHeader('Location', "/torneos/{$idTorneo}/equipos")->withStatus(302);
+});
+
+// Procesa la eliminación de un equipo (POST)
+$app->post("/torneos/{torneo_id}/equipos/{equipo_id}/delete", function ($request, $response, $args) use ($renderer) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // CONTROL DE ACCESO: Si no está logueado, al login
+    if (!isset($_SESSION['usuario_id'])) {
+        return $response->withHeader('Location', '/login')->withStatus(302);
+    }
+
+    $idTorneo = $args['torneo_id'];
+    $idEquipo = $args['equipo_id'];
+    $idOrganizador = $_SESSION['usuario_id'];
+
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // SEGURIDAD: Verificar que el torneo pertenezca al usuario logueado
+    $stmtCheck = $db->prepare("SELECT id FROM torneos WHERE id = ? AND id_organizador = ?");
+    $stmtCheck->execute([$idTorneo, $idOrganizador]);
+
+    if (!$stmtCheck->fetch()) {
+        $response->getBody()->write("No tienes permisos para realizar esta acción.");
+        return $response->withStatus(403);
+    }
+
+    // Proceder a eliminar el equipo
+    $stmtDelete = $db->prepare("DELETE FROM equipos WHERE id = ? AND id_torneo = ?");
+    $stmtDelete->execute([$idEquipo, $idTorneo]);
+
+    // Redireccionar nuevamente al panel de equipos de este torneo
     return $response->withHeader('Location', "/torneos/{$idTorneo}/equipos")->withStatus(302);
 });
 
@@ -320,16 +549,260 @@ $app->post("/torneos/{id}/equipos", function ($request, $response, $args) use ($
 // 5. PARTIDOS / FIXTURE (ZONA PRIVADA)
 // ==========================================
 
-// Calendario/Fixture de un torneo
-$app->get("/torneos/{id}/fixture", function ($request, $response) use ($renderer) {
-    return view($renderer, $response, "partidos/fixture.php");
+// Genera el fixture automáticamente para un torneo
+$app->post("/torneos/{id}/fixture/generar", function ($request, $response, $args) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    if (!isset($_SESSION['usuario_id'])) {
+        return $response->withHeader('Location', '/login')->withStatus(302);
+    }
+
+    $idTorneo = $args['id'];
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // 1. Obtener todos los equipos del torneo
+    $stmt = $db->prepare("SELECT id FROM equipos WHERE id_torneo = ?");
+    $stmt->execute([$idTorneo]);
+    $equipos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    if (count($equipos) < 2) {
+        $response->getBody()->write("Necesitas al menos 2 equipos para generar un fixture.");
+        return $response->withStatus(400);
+    }
+
+    // 2. Limpiar partidos anteriores
+    $stmtDelete = $db->prepare("DELETE FROM partidos WHERE id_torneo = ?");
+    $stmtDelete->execute([$idTorneo]);
+
+    // 3. Preparar lista de equipos (Round-Robin)
+    $numEquipos = count($equipos);
+
+    if ($numEquipos % 2 !== 0) {
+        $equipos[] = null; // Elemento null para fecha libre
+        $numEquipos++;
+    }
+
+    $jornadas = $numEquipos - 1;
+    $partidosPorJornada = $numEquipos / 2;
+
+    for ($jornada = 1; $jornada <= $jornadas; $jornada++) {
+        for ($i = 0; $i < $partidosPorJornada; $i++) {
+            $local = $equipos[$i];
+            $visitante = $equipos[$numEquipos - 1 - $i];
+
+            // Si ambos son null, omitimos
+            if ($local === null && $visitante === null) {
+                continue;
+            }
+
+            // Insertar en la base de datos (soporta cuando local o visitante sea null)
+            $stmtInsert = $db->prepare("INSERT INTO partidos (id_torneo, id_equipo_local, id_equipo_visitante, fecha_numero) VALUES (?, ?, ?, ?)");
+            $stmtInsert->execute([$idTorneo, $local, $visitante, $jornada]);
+        }
+
+        // Rotación segura de equipos conservando el índice 0
+        $ultimoEquipo = array_pop($equipos);
+        array_splice($equipos, 1, 0, [$ultimoEquipo]);
+    }
+
+    return $response->withHeader('Location', "/torneos/{$idTorneo}/fixture")->withStatus(302);
 });
 
-// Cargar/Editar resultado de un partido específico
-$app->get("/partidos/{id}/resultado", function ($request, $response) use ($renderer) {
-    return view($renderer, $response, "partidos/resultado.php");
+// Muestra el Fixture de un torneo
+$app->get("/torneos/{id}/fixture", function ($request, $response, $args) use ($renderer) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $idTorneo = $args['id'];
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // Consultar torneo
+    $stmtTorneo = $db->prepare("SELECT * FROM torneos WHERE id = ?");
+    $stmtTorneo->execute([$idTorneo]);
+    $torneo = $stmtTorneo->fetch();
+
+    // Usamos LEFT JOIN para que traiga también las fechas libres (donde visitante o local son NULL)
+    $sql = "SELECT p.*, 
+                   el.nombre AS local_nombre, 
+                   ev.nombre AS visitante_nombre 
+            FROM partidos p
+            LEFT JOIN equipos el ON p.id_equipo_local = el.id
+            LEFT JOIN equipos ev ON p.id_equipo_visitante = ev.id
+            WHERE p.id_torneo = ?
+            ORDER BY p.fecha_numero ASC, p.id ASC";
+
+    $stmtPartidos = $db->prepare($sql);
+    $stmtPartidos->execute([$idTorneo]);
+    $partidos = $stmtPartidos->fetchAll();
+
+    return view($renderer, $response, "partidos/fixture.php", [
+        "torneo" => $torneo,
+        "partidos" => $partidos
+    ]);
 });
 
+// Actualizar el resultado de un partido (POST)
+$app->post("/partidos/{id}/resultado", function ($request, $response, $args) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    if (!isset($_SESSION['usuario_id'])) {
+        return $response->withHeader('Location', '/login')->withStatus(302);
+    }
+
+    $idPartido = $args['id'];
+    $parsedBody = $request->getParsedBody();
+    
+    $golesLocal = $parsedBody['goles_local'] ?? null;
+    $golesVisitante = $parsedBody['goles_visitante'] ?? null;
+
+    if ($golesLocal === null || $golesVisitante === null) {
+        $response->getBody()->write("Debes ingresar los goles de ambos equipos.");
+        return $response->withStatus(400);
+    }
+
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // Obtener id_torneo para la redirección
+    $stmtPartido = $db->prepare("SELECT id_torneo FROM partidos WHERE id = ?");
+    $stmtPartido->execute([$idPartido]);
+    $partido = $stmtPartido->fetch();
+
+    if (!$partido) {
+        $response->getBody()->write("Partido no encontrado.");
+        return $response->withStatus(404);
+    }
+
+    // Actualizar resultado
+    $stmt = $db->prepare("UPDATE partidos SET goles_local = ?, goles_visitante = ?, estado = 'finalizado' WHERE id = ?");
+    $stmt->execute([$golesLocal, $golesVisitante, $idPartido]);
+
+    return $response->withHeader('Location', "/torneos/{$partido['id_torneo']}/fixture")->withStatus(302);
+});
+
+// Muestra la Tabla de Posiciones calculada dinámicamente
+$app->get("/torneos/{id}/tabla", function ($request, $response, $args) use ($renderer) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    $idTorneo = $args['id'];
+    $databaseInstancia = new Database();
+    $db = $databaseInstancia->getConnection();
+
+    // 1. Obtener datos del torneo
+    $stmtTorneo = $db->prepare("SELECT * FROM torneos WHERE id = ?");
+    $stmtTorneo->execute([$idTorneo]);
+    $torneo = $stmtTorneo->fetch();
+
+    if (!$torneo) {
+        $response->getBody()->write("Torneo no encontrado.");
+        return $response->withStatus(404);
+    }
+
+    // 2. Obtener todos los equipos del torneo
+    $stmtEquipos = $db->prepare("SELECT id, nombre FROM equipos WHERE id_torneo = ?");
+    $stmtEquipos->execute([$idTorneo]);
+    $equipos = $stmtEquipos->fetchAll();
+
+    // Estructura inicial para acumular estadísticas por equipo
+    $tabla = [];
+    foreach ($equipos as $eq) {
+        $tabla[$eq['id']] = [
+            'nombre' => $eq['nombre'],
+            'pj' => 0, // Partidos Jugados
+            'pg' => 0, // Ganados
+            'pe' => 0, // Empatados
+            'pp' => 0, // Perdidos
+            'gf' => 0, // Goles a Favor
+            'gc' => 0, // Goles en Contra
+            'dg' => 0, // Diferencia de Gol
+            'pts' => 0 // Puntos
+        ];
+    }
+
+    // 3. Obtener partidos finalizados con marcador cargado
+    $stmtPartidos = $db->prepare("
+        SELECT * FROM partidos 
+        WHERE id_torneo = ? 
+          AND goles_local IS NOT NULL 
+          AND goles_visitante IS NOT NULL 
+          AND id_equipo_local IS NOT NULL 
+          AND id_equipo_visitante IS NOT NULL
+    ");
+    $stmtPartidos->execute([$idTorneo]);
+    $partidos = $stmtPartidos->fetchAll();
+
+    // 4. Procesar resultados y sumar estadísticas
+    foreach ($partidos as $p) {
+        $idLocal = $p['id_equipo_local'];
+        $idVisitante = $p['id_equipo_visitante'];
+        $golesL = (int)$p['goles_local'];
+        $golesV = (int)$p['goles_visitante'];
+
+        if (!isset($tabla[$idLocal]) || !isset($tabla[$idVisitante])) {
+            continue;
+        }
+
+        // Partidos jugados
+        $tabla[$idLocal]['pj']++;
+        $tabla[$idVisitante]['pj']++;
+
+        // Goles a favor y en contra
+        $tabla[$idLocal]['gf'] += $golesL;
+        $tabla[$idLocal]['gc'] += $golesV;
+        $tabla[$idVisitante]['gf'] += $golesV;
+        $tabla[$idVisitante]['gc'] += $golesL;
+
+        // Evaluación del resultado
+        if ($golesL > $golesV) {
+            // Gana Local
+            $tabla[$idLocal]['pg']++;
+            $tabla[$idLocal]['pts'] += 3;
+            $tabla[$idVisitante]['pp']++;
+        } elseif ($golesV > $golesL) {
+            // Gana Visitante
+            $tabla[$idVisitante]['pg']++;
+            $tabla[$idVisitante]['pts'] += 3;
+            $tabla[$idLocal]['pp']++;
+        } else {
+            // Empate
+            $tabla[$idLocal]['pe']++;
+            $tabla[$idLocal]['pts'] += 1;
+            $tabla[$idVisitante]['pe']++;
+            $tabla[$idVisitante]['pts'] += 1;
+        }
+    }
+
+    // 5. Calcular diferencia de gol y ordenar la tabla
+    foreach ($tabla as &$e) {
+        $e['dg'] = $e['gf'] - $e['gc'];
+    }
+    unset($e);
+
+    // Criterio de ordenamiento: Puntos DESC, Diferencia de Gol DESC, Goles a Favor DESC
+    usort($tabla, function ($a, $b) {
+        if ($b['pts'] !== $a['pts']) {
+            return $b['pts'] <=> $a['pts'];
+        }
+        if ($b['dg'] !== $a['dg']) {
+            return $b['dg'] <=> $a['dg'];
+        }
+        return $b['gf'] <=> $a['gf'];
+    });
+
+    return view($renderer, $response, "torneos/tabla.php", [
+        "torneo" => $torneo,
+        "tabla" => $tabla
+    ]);
+});
 
 $app->addErrorMiddleware($debug, true, true);
 

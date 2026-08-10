@@ -35,3 +35,15 @@ function view(
     "content" => $content,
   ]);
 }
+
+/**
+ * Renderiza una vista de forma independiente, sin envolverla en layouts/base.php.
+ */
+function viewStandalone(
+  PhpRenderer $renderer,
+  ResponseInterface $response,
+  string $template,
+  array $data = []
+): ResponseInterface {
+  return $renderer->render($response, $template, $data);
+}
