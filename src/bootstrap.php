@@ -549,7 +549,7 @@ $app->post("/torneos/{torneo_id}/equipos/{equipo_id}/delete", function ($request
 // 5. PARTIDOS / FIXTURE (ZONA PRIVADA)
 // ==========================================
 
-// Genera el fixture automáticamente para un torneo
+// Genera el fixture automáticamente (Soporta Liga y Eliminatoria)
 $app->post("/torneos/{id}/fixture/generar", function ($request, $response, $args) {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
@@ -563,49 +563,82 @@ $app->post("/torneos/{id}/fixture/generar", function ($request, $response, $args
     $databaseInstancia = new Database();
     $db = $databaseInstancia->getConnection();
 
-    // 1. Obtener todos los equipos del torneo
+    // 1. Obtener datos del torneo (para verificar el formato)
+    $stmtTorneo = $db->prepare("SELECT * FROM torneos WHERE id = ?");
+    $stmtTorneo->execute([$idTorneo]);
+    $torneo = $stmtTorneo->fetch();
+
+    if (!$torneo) {
+        $response->getBody()->write("Torneo no encontrado.");
+        return $response->withStatus(404);
+    }
+
+    // 2. Obtener todos los equipos cargados
     $stmt = $db->prepare("SELECT id FROM equipos WHERE id_torneo = ?");
     $stmt->execute([$idTorneo]);
     $equipos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $cantEquipos = count($equipos);
 
-    if (count($equipos) < 2) {
-        $response->getBody()->write("Necesitas al menos 2 equipos para generar un fixture.");
-        return $response->withStatus(400);
+    // 3. Validación de lógica según formato
+    if ($torneo['formato'] === 'eliminatoria') {
+        // En eliminatoria directa requerimos potencias de 2 válidas: 2, 4, 8, 16, 32
+        $potenciasValidas = [2, 4, 8, 16, 32];
+        
+        if (!in_array($cantEquipos, $potenciasValidas, true)) {
+            $response->getBody()->write("Para el formato de Eliminación Directa debes registrar exactamente 2, 4, 8, 16 o 32 equipos. Actualmente tienes {$cantEquipos}.");
+            return $response->withStatus(400);
+        }
+    } else {
+        // Formato Liga
+        if ($cantEquipos < 2) {
+            $response->getBody()->write("Necesitas al menos 2 equipos para generar el fixture de una liga.");
+            return $response->withStatus(400);
+        }
     }
 
-    // 2. Limpiar partidos anteriores
+    // 4. Limpiar partidos anteriores
     $stmtDelete = $db->prepare("DELETE FROM partidos WHERE id_torneo = ?");
     $stmtDelete->execute([$idTorneo]);
 
-    // 3. Preparar lista de equipos (Round-Robin)
-    $numEquipos = count($equipos);
+    // 5. GENERACIÓN SEGÚN FORMATO
+    if ($torneo['formato'] === 'eliminatoria') {
+        // Mezclamos los equipos para que los cruces sean aleatorios
+        shuffle($equipos);
 
-    if ($numEquipos % 2 !== 0) {
-        $equipos[] = null; // Elemento null para fecha libre
-        $numEquipos++;
-    }
-
-    $jornadas = $numEquipos - 1;
-    $partidosPorJornada = $numEquipos / 2;
-
-    for ($jornada = 1; $jornada <= $jornadas; $jornada++) {
-        for ($i = 0; $i < $partidosPorJornada; $i++) {
+        // Creamos la primera ronda (Fecha 1: Octavos, Cuartos, Semis, etc.)
+        for ($i = 0; $i < $cantEquipos; $i += 2) {
             $local = $equipos[$i];
-            $visitante = $equipos[$numEquipos - 1 - $i];
+            $visitante = $equipos[$i + 1];
 
-            // Si ambos son null, omitimos
-            if ($local === null && $visitante === null) {
-                continue;
-            }
-
-            // Insertar en la base de datos (soporta cuando local o visitante sea null)
-            $stmtInsert = $db->prepare("INSERT INTO partidos (id_torneo, id_equipo_local, id_equipo_visitante, fecha_numero) VALUES (?, ?, ?, ?)");
-            $stmtInsert->execute([$idTorneo, $local, $visitante, $jornada]);
+            $stmtInsert = $db->prepare("INSERT INTO partidos (id_torneo, id_equipo_local, id_equipo_visitante, fecha_numero) VALUES (?, ?, ?, 1)");
+            $stmtInsert->execute([$idTorneo, $local, $visitante]);
+        }
+    } else {
+        // Algoritmo Round-Robin para LIGA
+        if ($cantEquipos % 2 !== 0) {
+            $equipos[] = null; // Fecha libre
+            $cantEquipos++;
         }
 
-        // Rotación segura de equipos conservando el índice 0
-        $ultimoEquipo = array_pop($equipos);
-        array_splice($equipos, 1, 0, [$ultimoEquipo]);
+        $jornadas = $cantEquipos - 1;
+        $partidosPorJornada = $cantEquipos / 2;
+
+        for ($jornada = 1; $jornada <= $jornadas; $jornada++) {
+            for ($i = 0; $i < $partidosPorJornada; $i++) {
+                $local = $equipos[$i];
+                $visitante = $equipos[$cantEquipos - 1 - $i];
+
+                if ($local === null && $visitante === null) {
+                    continue;
+                }
+
+                $stmtInsert = $db->prepare("INSERT INTO partidos (id_torneo, id_equipo_local, id_equipo_visitante, fecha_numero) VALUES (?, ?, ?, ?)");
+                $stmtInsert->execute([$idTorneo, $local, $visitante, $jornada]);
+            }
+
+            $ultimoEquipo = array_pop($equipos);
+            array_splice($equipos, 1, 0, [$ultimoEquipo]);
+        }
     }
 
     return $response->withHeader('Location', "/torneos/{$idTorneo}/fixture")->withStatus(302);

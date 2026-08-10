@@ -48,9 +48,12 @@
                         <a href="/torneos/<?= $torneo['id'] ?>/fixture" class="flex-1 text-center bg-brand-emerald hover:bg-brand-medium text-white font-semibold py-2 px-3 rounded-md text-xs transition">
                             📅 Fixture
                         </a>
-                        <a href="/torneos/<?= $torneo['id'] ?>/tabla" class="flex-1 text-center bg-brand-dark hover:bg-slate-800 text-brand-mint font-semibold py-2 px-3 rounded-md text-xs transition">
-                            📊 Tabla
-                        </a>
+                        <!-- Solo mostramos el acceso a la Tabla si el torneo es una Liga -->
+                        <?php if ($torneo['formato'] === 'liga'): ?>
+                            <a href="/torneos/<?= $torneo['id'] ?>/tabla" class="flex-1 text-center bg-brand-dark hover:bg-slate-800 text-brand-mint font-semibold py-2 px-3 rounded-md text-xs transition">
+                                📊 Tabla
+                            </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
