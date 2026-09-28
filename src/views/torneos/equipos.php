@@ -33,32 +33,44 @@
     </div>
 
     <!-- LISTADO DE EQUIPOS REGISTRADOS -->
-    <div class="bg-white p-6 rounded-xl border border-brand-mint shadow-sm">
-        <h2 class="text-lg font-bold text-brand-dark mb-4">Equipos Registrados (<?= count($equipos) ?>)</h2>
+<div class="bg-white p-6 rounded-xl border border-brand-mint shadow-sm">
+    <h2 class="text-lg font-bold text-brand-dark mb-4">Equipos Registrados (<?= count($equipos) ?>)</h2>
 
-        <?php if (empty($equipos)): ?>
-            <div class="text-center py-8 border border-dashed border-slate-300 rounded-lg bg-slate-50">
-                <p class="text-slate-500 text-sm font-medium">No hay equipos registrados en este torneo aún.</p>
-                <p class="text-slate-400 text-xs mt-1">Usa el formulario de arriba para ingresar el primer equipo.</p>
-            </div>
-        <?php else: ?>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <?php foreach ($equipos as $equipo): ?>
-                    <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-lg hover:border-brand-mint transition">
-                        <span class="font-bold text-brand-dark text-sm">
-                            🛡️ <?= htmlspecialchars($equipo['nombre']) ?>
-                        </span>
+    <?php if (empty($equipos)): ?>
+        <div class="text-center py-8 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+            <p class="text-slate-500 text-sm font-medium">No hay equipos registrados en este torneo aún.</p>
+            <p class="text-slate-400 text-xs mt-1">Usa el formulario de arriba para ingresar el primer equipo.</p>
+        </div>
+    <?php else: ?>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <?php foreach ($equipos as $equipo): ?>
+                <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 rounded-lg hover:border-brand-mint transition gap-3">
+                    <!-- Nombre del equipo -->
+                    <span class="font-bold text-brand-dark text-sm flex items-center gap-1.5 shrink-0">
+                        🛡️ <?= htmlspecialchars($equipo['nombre']) ?>
+                    </span>
 
+                    <div class="flex items-center gap-3">
+                        <!-- Insignia del Código de Invitación -->
+                        <div class="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded border border-slate-200 shadow-sm">
+                            <span class="text-[11px] font-semibold text-slate-500">Código:</span>
+                            <code class="text-indigo-600 font-mono font-bold text-xs">
+                                <?= htmlspecialchars($equipo['codigo_invitacion'] ?? 'SIN-CODIGO') ?>
+                            </code>
+                        </div>
+
+                        <!-- Botón de Eliminar -->
                         <form action="/torneos/<?= $torneo['id'] ?>/equipos/<?= $equipo['id'] ?>/delete" method="POST" onsubmit="return confirm('¿Deseas eliminar este equipo?');">
                             <button type="submit" class="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded transition text-xs font-bold" title="Eliminar equipo">
                                 🗑️
                             </button>
                         </form>
                     </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
 
     <!-- TARJETA: Generar Fixture -->
     <div class="bg-brand-dark p-6 rounded-xl shadow-md border border-brand-deep flex flex-col sm:flex-row items-center justify-between gap-4">

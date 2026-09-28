@@ -20,3 +20,6 @@ Thumbs.db
 # IDE / editor files
 .vscode/
 .idea/
+
+# Middleware que registra errores en errores.txt
+src/middlewares/errores.txt
