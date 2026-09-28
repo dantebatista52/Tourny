@@ -49,9 +49,7 @@ function generarCodigoInvitacion(int $longitud = 6): string {
 require __DIR__ . '/routes/auth.routes.php';
 require __DIR__ . '/routes/torneos.routes.php';
 require __DIR__ . '/routes/equipos.routes.php';
-
-
-
+require __DIR__ . '/routes/home.routes.php';
 
 // 1. Activar el middleware nativo de errores de Slim
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
